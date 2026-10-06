@@ -97,7 +97,9 @@ runCli(process.argv.slice(2), {
 });
 ```
 
-`--url` and `DATABASE_URL` still take precedence over the wrapper's `connection`.
+Precedence: `--url`, then the wrapper's `connection`, then `DATABASE_URL`, then the libpq `PG*` variables. Every database command prints the target (`Database: host:port/name`) before it runs.
+
+`--env-file` uses Node's `process.loadEnvFile`, which does not override variables already set in your shell.
 
 ### Programmatic API
 

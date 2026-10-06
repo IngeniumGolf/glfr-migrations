@@ -41,7 +41,8 @@ export class Migrator {
   private readonly db: IDatabase<unknown>;
   private readonly dir: string;
   private readonly table: string;
-  private readonly tableSql: string;
+  private tableSql: string;
+  private readonly qualified: boolean;
   private readonly logger: Logger;
 
   constructor(options: MigratorOptions) {
@@ -52,6 +53,7 @@ export class Migrator {
     }
 
     this.pgp = pgPromise();
+    this.qualified = parts.length === 2;
     this.tableSql = parts.map((part) => this.pgp.as.name(part)).join(".");
     this.db = this.pgp(options.connection);
     this.dir = options.dir;
@@ -60,7 +62,10 @@ export class Migrator {
 
   /** Read-only: does not create the bookkeeping table or take the lock. */
   async status(): Promise<MigrationStatus[]> {
-    const applied = await this.db.task((t) => this.readApplied(t));
+    const applied = await this.db.task(async (t) => {
+      await this.qualifyTable(t);
+      return this.readApplied(t);
+    });
     const appliedByVersion = new Map(applied.map((m) => [m.version, m]));
     const files = discoverMigrations(this.dir);
     const fileVersions = new Set(files.map((f) => f.version));
@@ -244,6 +249,7 @@ export class Migrator {
       // Session-level lock: concurrent runs (e.g. parallel deploys) wait instead of racing
       await t.one("SELECT pg_advisory_lock(hashtext($1))", [lockKey]);
       try {
+        await this.qualifyTable(t);
         await t.none(`
           CREATE TABLE IF NOT EXISTS ${this.tableSql} (
             version VARCHAR(14) PRIMARY KEY,
@@ -258,6 +264,17 @@ export class Migrator {
         await t.one("SELECT pg_advisory_unlock(hashtext($1))", [lockKey]);
       }
     });
+  }
+
+  /**
+   * Pins an unqualified table to the session's current schema before any migration runs, so a
+   * migration that changes search_path (e.g. a pg_dump restore) can't redirect the bookkeeping.
+   */
+  private async qualifyTable(t: MigrationTask): Promise<void> {
+    if (this.qualified || this.tableSql.includes(".")) return;
+    const { schema } = await t.one<{ schema: string | null }>("SELECT current_schema() AS schema");
+    if (!schema) throw new Error("No current schema: set search_path or use a schema-qualified --table");
+    this.tableSql = `${this.pgp.as.name(schema)}.${this.tableSql}`;
   }
 
   private async readApplied(t: MigrationTask): Promise<AppliedMigration[]> {

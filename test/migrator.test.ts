@@ -177,6 +177,27 @@ describe.skipIf(!url)("Migrator (integration, needs TEST_DATABASE_URL)", () => {
     expect(index).not.toBeNull();
   });
 
+  it("keeps bookkeeping working when a migration empties search_path", async () => {
+    write(
+      "20261001000000_like_pg_dump.cjs",
+      `exports.up = async (t) => {
+         await t.one("SELECT pg_catalog.set_config('search_path', '', true)");
+         await t.none("CREATE TABLE ${schema}.restored (id INT)");
+       };`,
+    );
+    const m = new Migrator({
+      // Unqualified table resolved against search_path, like a default setup
+      connection: `${url}${url?.includes("?") ? "&" : "?"}options=-c%20search_path%3D${schema}`,
+      dir,
+      logger: silent,
+    });
+    migrators.push(m);
+
+    await m.up();
+    expect((await m.status()).map((s) => s.state)).toEqual(["applied"]);
+    expect(await tables()).toEqual(["restored"]);
+  });
+
   it("baselines without running migrations", async () => {
     write("20261001000000_create_a.cjs", tableMigration("a"));
     write("20261002000000_create_b.cjs", tableMigration("b"));

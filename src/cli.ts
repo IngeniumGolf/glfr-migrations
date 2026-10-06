@@ -26,7 +26,7 @@ Options:
 `;
 
 export interface CliOptions {
-  /** Connection used when --url and DATABASE_URL are not set. Lets wrappers map project-specific env vars. */
+  /** Connection used unless --url is given. Takes precedence over DATABASE_URL so wrappers can map project-specific env vars. */
   connection?: ConnectionOptions | (() => ConnectionOptions);
   /** Default migrations directory, relative to the working directory. */
   dir?: string;
@@ -53,10 +53,27 @@ const resolveConnection = (
   fallback: CliOptions["connection"],
 ): ConnectionOptions => {
   if (url) return url;
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   if (fallback) return typeof fallback === "function" ? fallback() : fallback;
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   // node-postgres fills in PGHOST, PGPORT, PGDATABASE, PGUSER and PGPASSWORD
   return {};
+};
+
+/** host:port/database without credentials, so every run shows which database it touches. */
+const describeConnection = (connection: ConnectionOptions): string => {
+  if (typeof connection === "string") {
+    try {
+      const parsed = new URL(connection);
+      return `${parsed.hostname}:${parsed.port || 5432}${parsed.pathname}`;
+    } catch {
+      return "(connection string)";
+    }
+  }
+  const config = connection as { host?: string; port?: number; database?: string };
+  const host = config.host ?? process.env.PGHOST ?? "localhost";
+  const port = config.port ?? process.env.PGPORT ?? 5432;
+  const database = config.database ?? process.env.PGDATABASE ?? "";
+  return `${host}:${port}/${database}`;
 };
 
 const readPackageVersion = (): string => {
@@ -129,8 +146,10 @@ export const runCli = async (
     return 0;
   }
 
+  const connection = resolveConnection(values.url, options.connection);
+  console.log(`Database: ${describeConnection(connection)}`);
   const migrator = new Migrator({
-    connection: resolveConnection(values.url, options.connection),
+    connection,
     dir,
     table: values.table ?? options.table,
   });
