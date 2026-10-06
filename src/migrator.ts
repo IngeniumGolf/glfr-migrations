@@ -272,8 +272,13 @@ export class Migrator {
    */
   private async qualifyTable(t: MigrationTask): Promise<void> {
     if (this.qualified || this.tableSql.includes(".")) return;
-    const { schema } = await t.one<{ schema: string | null }>("SELECT current_schema() AS schema");
-    if (!schema) throw new Error("No current schema: set search_path or use a schema-qualified --table");
+    const { schema } = await t.one<{ schema: string | null }>(
+      "SELECT current_schema() AS schema",
+    );
+    if (!schema)
+      throw new Error(
+        "No current schema: set search_path or use a schema-qualified --table",
+      );
     this.tableSql = `${this.pgp.as.name(schema)}.${this.tableSql}`;
   }
 

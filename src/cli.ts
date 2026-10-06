@@ -69,7 +69,11 @@ const describeConnection = (connection: ConnectionOptions): string => {
       return "(connection string)";
     }
   }
-  const config = connection as { host?: string; port?: number; database?: string };
+  const config = connection as {
+    host?: string;
+    port?: number;
+    database?: string;
+  };
   const host = config.host ?? process.env.PGHOST ?? "localhost";
   const port = config.port ?? process.env.PGPORT ?? 5432;
   const database = config.database ?? process.env.PGDATABASE ?? "";
