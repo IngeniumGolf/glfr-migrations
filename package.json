@@ -1,0 +1,54 @@
+{
+  "name": "@ingeniumgolf/migrations",
+  "version": "0.1.0",
+  "description": "Small, SQL-first PostgreSQL migration runner built on pg-promise",
+  "license": "MIT",
+  "author": "Ingenium Golf <developer@glfr.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IngeniumGolf/glfr-migrations.git"
+  },
+  "homepage": "https://github.com/IngeniumGolf/glfr-migrations#readme",
+  "bugs": "https://github.com/IngeniumGolf/glfr-migrations/issues",
+  "keywords": [
+    "postgres",
+    "postgresql",
+    "migrations",
+    "pg-promise"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "glfr-migrate": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.19.0",
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "docker compose up -d --wait",
+    "prepublishOnly": "pnpm typecheck && pnpm build"
+  },
+  "dependencies": {
+    "pg-promise": "^12.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

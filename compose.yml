@@ -1,0 +1,13 @@
+# Throwaway Postgres for the integration tests: TEST_DATABASE_URL=postgres://postgres:postgres@localhost:54329/postgres
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "54329:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
