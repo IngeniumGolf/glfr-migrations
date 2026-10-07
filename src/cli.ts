@@ -17,7 +17,7 @@ Commands:
 
 Options:
   --dir <path>        Migrations directory (default: ./migrations)
-  --url <url>         Connection string (default: $DATABASE_URL, then libpq PG* variables)
+  --url <url>         Connection string (default: $DATABASE_URL, then PG* or DB_* variables)
   --table <name>      Bookkeeping table, optionally schema-qualified (default: glfr_migrations)
   --env-file <path>   Load environment variables (default: ./.env if present)
   --step <n>          up: apply at most n migrations. down: roll back n migrations (default 1)
@@ -55,6 +55,18 @@ const resolveConnection = (
   if (url) return url;
   if (fallback) return typeof fallback === "function" ? fallback() : fallback;
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  const usePg = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"].some(
+    (key) => process.env[key] !== undefined,
+  );
+  if (!usePg) {
+    return {
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT ?? 5432),
+      database: process.env.DB_NAME,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS,
+    };
+  }
   return {
     host: process.env.PGHOST,
     port: Number(process.env.PGPORT ?? 5432),
@@ -97,7 +109,7 @@ const validateConnection = (connection: ConnectionOptions): void => {
   );
   if (missing.length) {
     throw new Error(
-      `Missing database connection settings: ${missing.join(", ")}. Use DATABASE_URL, PGHOST/PGDATABASE/PGUSER, or your project's connection wrapper. ${guidance}`,
+      `Missing database connection settings: ${missing.join(", ")}. Use DATABASE_URL, PGHOST/PGDATABASE/PGUSER, DB_HOST/DB_NAME/DB_USER, or your project's connection wrapper. ${guidance}`,
     );
   }
   if (

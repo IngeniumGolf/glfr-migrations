@@ -28,12 +28,12 @@ glfr-migrate down --step 3
 glfr-migrate baseline 20261006120000   # mark everything up to this version as applied
 ```
 
-| Option              | Default                                                                                               |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `--dir <path>`      | `./migrations`                                                                                        |
-| `--url <url>`       | `$DATABASE_URL`, then libpq `PG*` env vars (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`) |
-| `--table <name>`    | `glfr_migrations`, may be schema-qualified (`ops.glfr_migrations`)                                    |
-| `--env-file <path>` | `./.env` if present; an explicit path must exist                                                      |
+| Option              | Default                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `--dir <path>`      | `./migrations`                                                     |
+| `--url <url>`       | `$DATABASE_URL`, then `PG*`, then `DB_*` environment variables     |
+| `--table <name>`    | `glfr_migrations`, may be schema-qualified (`ops.glfr_migrations`) |
+| `--env-file <path>` | `./.env` if present; an explicit path must exist                   |
 
 Typical `package.json` scripts:
 
@@ -77,7 +77,19 @@ export const down = async (t: MigrationTask): Promise<void> => {
 
 ### Custom connection settings
 
-If your project names its connection variables differently, wrap the CLI:
+The CLI accepts either naming convention directly; no wrapper is needed for `DB_*`:
+
+| PostgreSQL variable | Alternative |
+| ------------------- | ----------- |
+| `PGHOST`            | `DB_HOST`   |
+| `PGPORT`            | `DB_PORT`   |
+| `PGDATABASE`        | `DB_NAME`   |
+| `PGUSER`            | `DB_USER`   |
+| `PGPASSWORD`        | `DB_PASS`   |
+
+The port defaults to `5432`. If any of these `PG*` variables is set, the entire `PG*` family is used; missing values are not filled from `DB_*`. This prevents connecting to one server with another server's credentials.
+
+For other conventions or custom connection options, wrap the CLI:
 
 ```ts
 // scripts/migrate.ts
@@ -97,13 +109,13 @@ runCli(process.argv.slice(2), {
 });
 ```
 
-Precedence: `--url`, then the wrapper's `connection`, then `DATABASE_URL`, then the libpq `PG*` variables. Every database command prints the target (`Database: host:port/name`) before it runs.
+Precedence: `--url`, then the wrapper's `connection`, then `DATABASE_URL`, then `PG*`, then `DB_*`. Every database command prints the target (`Database: host:port/name`) before it runs.
 
 `--env-file` uses Node's `process.loadEnvFile`, which does not override variables already set in your shell.
 
 Database commands load `.env` from the current working directory by default. If it is absent, environment-provided connection settings still work (for example in CI). An explicit `--env-file` must exist and replaces the default file.
 
-Connections must specify a host, database and user through a PostgreSQL URL, `PGHOST`/`PGDATABASE`/`PGUSER`, or the project's wrapper. Missing settings fail before connecting, with instructions to create `.env` or use `--env-file`. Passwordless authentication is permitted. `create`, `--help` and `--version` do not load env files or require a database.
+Connections must specify a host, database and user through a PostgreSQL URL, `PGHOST`/`PGDATABASE`/`PGUSER`, `DB_HOST`/`DB_NAME`/`DB_USER`, or the project's wrapper. Missing settings fail before connecting, with instructions to create `.env` or use `--env-file`. Passwordless authentication is permitted. `create`, `--help` and `--version` do not load env files or require a database.
 
 ### Programmatic API
 

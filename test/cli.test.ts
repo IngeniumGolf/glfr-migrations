@@ -35,6 +35,8 @@ beforeEach(() => {
     "DB_HOST",
     "DB_NAME",
     "DB_USER",
+    "DB_PORT",
+    "DB_PASS",
   ]) {
     delete process.env[key];
   }
@@ -109,6 +111,96 @@ describe("CLI environment configuration", () => {
           user: "test",
         }),
       }),
+    );
+  });
+
+  it("loads DB_* settings from .env without a wrapper", async () => {
+    writeEnv(
+      ".env",
+      "DB_HOST=db.example\nDB_NAME=glfr\nDB_USER=test\nDB_PORT=5433\nDB_PASS=fixture-password\n",
+    );
+    await runCli(["status"]);
+    expect(mocks.constructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connection: {
+          host: "db.example",
+          database: "glfr",
+          user: "test",
+          port: 5433,
+          password: "fixture-password",
+        },
+      }),
+    );
+  });
+
+  it("supports DB_* shell settings and defaults DB_PORT to 5432", async () => {
+    Object.assign(process.env, {
+      DB_HOST: "db.example",
+      DB_NAME: "glfr",
+      DB_USER: "test",
+      DB_PASS: "fixture-password",
+    });
+    await runCli(["status"]);
+    expect(mocks.constructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connection: expect.objectContaining({
+          host: "db.example",
+          port: 5432,
+          password: "fixture-password",
+        }),
+      }),
+    );
+  });
+
+  it("prefers PG* settings when both families are present", async () => {
+    Object.assign(process.env, {
+      PGHOST: "pg.example",
+      PGDATABASE: "pgdb",
+      PGUSER: "pguser",
+      PGPORT: "5434",
+      PGPASSWORD: "pg-password",
+      DB_HOST: "db.example",
+      DB_NAME: "glfr",
+      DB_USER: "dbuser",
+      DB_PORT: "5433",
+      DB_PASS: "db-password",
+    });
+    await runCli(["status"]);
+    expect(mocks.constructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connection: {
+          host: "pg.example",
+          database: "pgdb",
+          user: "pguser",
+          port: 5434,
+          password: "pg-password",
+        },
+      }),
+    );
+  });
+
+  it("does not fill partial PG* settings from DB_* settings", async () => {
+    Object.assign(process.env, {
+      PGHOST: "pg.example",
+      DB_HOST: "db.example",
+      DB_NAME: "glfr",
+      DB_USER: "test",
+      DB_PASS: "fixture-password",
+    });
+    await expect(runCli(["status"])).rejects.toThrow("database, user");
+    expect(mocks.constructor).not.toHaveBeenCalled();
+  });
+
+  it("prefers DATABASE_URL over DB_* settings", async () => {
+    Object.assign(process.env, {
+      DATABASE_URL: "postgres://test@url.example/glfr",
+      DB_HOST: "db.example",
+      DB_NAME: "glfr",
+      DB_USER: "test",
+    });
+    await runCli(["status"]);
+    expect(mocks.constructor).toHaveBeenCalledWith(
+      expect.objectContaining({ connection: process.env.DATABASE_URL }),
     );
   });
 
