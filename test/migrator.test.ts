@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { spawnSync } from "node:child_process";
 import pgPromise from "pg-promise";
 import {
   afterAll,
@@ -72,6 +73,29 @@ describe.skipIf(!url)("Migrator (integration, needs TEST_DATABASE_URL)", () => {
 
   afterAll(async () => {
     await db.$pool.end();
+  });
+
+  it("exits with code 1 after a passwordless SCRAM authentication failure", () => {
+    const connection = new URL(url!);
+    connection.password = "";
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      DATABASE_URL: connection.href,
+    };
+    delete env.PGPASSWORD;
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve("dist/cli.js"), "status"],
+      {
+        env,
+        encoding: "utf8",
+        timeout: 5000,
+      },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("client password must be a string");
   });
 
   it("applies pending migrations in order and reports status", async () => {

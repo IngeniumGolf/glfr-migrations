@@ -33,14 +33,14 @@ glfr-migrate baseline 20261006120000   # mark everything up to this version as a
 | `--dir <path>`      | `./migrations`                                                                                        |
 | `--url <url>`       | `$DATABASE_URL`, then libpq `PG*` env vars (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`) |
 | `--table <name>`    | `glfr_migrations`, may be schema-qualified (`ops.glfr_migrations`)                                    |
-| `--env-file <path>` | none; loads a `.env` file before connecting                                                           |
+| `--env-file <path>` | `./.env` if present; an explicit path must exist                                                      |
 
 Typical `package.json` scripts:
 
 ```json
 {
   "scripts": {
-    "migrate": "glfr-migrate --env-file .env",
+    "migrate": "glfr-migrate",
     "migrate:create": "glfr-migrate create"
   }
 }
@@ -100,6 +100,10 @@ runCli(process.argv.slice(2), {
 Precedence: `--url`, then the wrapper's `connection`, then `DATABASE_URL`, then the libpq `PG*` variables. Every database command prints the target (`Database: host:port/name`) before it runs.
 
 `--env-file` uses Node's `process.loadEnvFile`, which does not override variables already set in your shell.
+
+Database commands load `.env` from the current working directory by default. If it is absent, environment-provided connection settings still work (for example in CI). An explicit `--env-file` must exist and replaces the default file.
+
+Connections must specify a host, database and user through a PostgreSQL URL, `PGHOST`/`PGDATABASE`/`PGUSER`, or the project's wrapper. Missing settings fail before connecting, with instructions to create `.env` or use `--env-file`. Passwordless authentication is permitted. `create`, `--help` and `--version` do not load env files or require a database.
 
 ### Programmatic API
 

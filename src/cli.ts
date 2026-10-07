@@ -19,7 +19,7 @@ Options:
   --dir <path>        Migrations directory (default: ./migrations)
   --url <url>         Connection string (default: $DATABASE_URL, then libpq PG* variables)
   --table <name>      Bookkeeping table, optionally schema-qualified (default: glfr_migrations)
-  --env-file <path>   Load environment variables from a .env file first
+  --env-file <path>   Load environment variables (default: ./.env if present)
   --step <n>          up: apply at most n migrations. down: roll back n migrations (default 1)
   -h, --help          Show this help
   -v, --version       Show the package version
@@ -55,8 +55,70 @@ const resolveConnection = (
   if (url) return url;
   if (fallback) return typeof fallback === "function" ? fallback() : fallback;
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  // node-postgres fills in PGHOST, PGPORT, PGDATABASE, PGUSER and PGPASSWORD
-  return {};
+  return {
+    host: process.env.PGHOST,
+    port: Number(process.env.PGPORT ?? 5432),
+    database: process.env.PGDATABASE,
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+  };
+};
+
+const validateConnection = (connection: ConnectionOptions): void => {
+  const guidance =
+    "Create a .env file, pass --env-file <path>, or supply connection settings in the environment.";
+  if (typeof connection === "string") {
+    let parsed: URL;
+    try {
+      parsed = new URL(connection);
+    } catch {
+      throw new Error(`Invalid PostgreSQL connection URL. ${guidance}`);
+    }
+    if (
+      !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+      !parsed.hostname ||
+      !parsed.username ||
+      parsed.pathname.length < 2
+    ) {
+      throw new Error(
+        `Connection URL must specify a PostgreSQL host, user and database. ${guidance}`,
+      );
+    }
+    return;
+  }
+  const config = connection as {
+    host?: string;
+    database?: string;
+    user?: string;
+    port?: number;
+  };
+  const missing = ["host", "database", "user"].filter(
+    (field) => !config[field as "host" | "database" | "user"]?.trim(),
+  );
+  if (missing.length) {
+    throw new Error(
+      `Missing database connection settings: ${missing.join(", ")}. Use DATABASE_URL, PGHOST/PGDATABASE/PGUSER, or your project's connection wrapper. ${guidance}`,
+    );
+  }
+  if (
+    config.port !== undefined &&
+    (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535)
+  ) {
+    throw new Error("Database port must be an integer between 1 and 65535.");
+  }
+};
+
+const loadEnvironment = (explicitPath: string | undefined): void => {
+  const envFile = explicitPath ?? path.resolve(".env");
+  if (!fs.existsSync(envFile)) {
+    if (explicitPath) {
+      throw new Error(
+        "Environment file not found. Set --env-file to an existing file or create a .env file.",
+      );
+    }
+    return;
+  }
+  process.loadEnvFile(envFile);
 };
 
 /** host:port/database without credentials, so every run shows which database it touches. */
@@ -141,7 +203,6 @@ export const runCli = async (
     return values.help ? 0 : 1;
   }
 
-  if (values["env-file"]) process.loadEnvFile(values["env-file"]);
   const dir = path.resolve(values.dir ?? options.dir ?? "migrations");
 
   if (command === "create" || command === "new" || command === "generate") {
@@ -150,7 +211,14 @@ export const runCli = async (
     return 0;
   }
 
+  if (!["up", "down", "status", "baseline"].includes(command)) {
+    console.error(`Unknown command "${command}"\n`);
+    console.log(USAGE);
+    return 1;
+  }
+  loadEnvironment(values["env-file"]);
   const connection = resolveConnection(values.url, options.connection);
+  validateConnection(connection);
   console.log(`Database: ${describeConnection(connection)}`);
   const migrator = new Migrator({
     connection,
@@ -186,7 +254,7 @@ export const runCli = async (
 if (typeof require !== "undefined" && require.main === module) {
   runCli().then(
     (code) => {
-      process.exitCode = code;
+      process.exit(code);
     },
     (error: unknown) => {
       console.error(
@@ -198,7 +266,7 @@ if (typeof require !== "undefined" && require.main === module) {
         !(error as Error).message.includes(cause.message)
       )
         console.error(cause);
-      process.exitCode = 1;
+      process.exit(1);
     },
   );
 }
