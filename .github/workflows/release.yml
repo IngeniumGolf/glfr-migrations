@@ -51,3 +51,29 @@ jobs:
       # Trusted publishing needs npm >= 11.5.1
       - run: npm install -g npm@^11.5.1
       - run: npm publish
+
+  # Also publish to GitHub Packages, so repos that get other @ingeniumgolf packages from there
+  # (e.g. be, for @ingeniumgolf/glfr-domain) can map the whole scope to one registry.
+  # Separate job: if it fails, "Re-run failed jobs" retries only this, not the npm publish.
+  github-packages:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: pnpm
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@ingeniumgolf"
+
+      - run: pnpm install --frozen-lockfile
+
+      # prepublishOnly runs typecheck + build. GitHub Packages has no provenance support.
+      - run: npm publish --registry=https://npm.pkg.github.com --provenance=false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

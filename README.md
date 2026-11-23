@@ -158,7 +158,7 @@ npm version patch   # or minor / major: bumps package.json, commits, tags
 git push --follow-tags
 ```
 
-The workflow checks that the tag matches `package.json`, runs the tests, and publishes with provenance. See [RELEASE.md](RELEASE.md) for logging in to npm, troubleshooting, and package settings.
+The workflow checks that the tag matches `package.json`, runs the tests, and publishes with provenance. It then publishes the same version to GitHub Packages (`npm.pkg.github.com`), for repos that install other `@ingeniumgolf` packages from there. See [RELEASE.md](RELEASE.md) for logging in to npm, troubleshooting, and package settings.
 
 ## License
 

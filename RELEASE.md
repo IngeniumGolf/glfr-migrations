@@ -2,6 +2,8 @@
 
 `@ingeniumgolf/migrations` is published to the public npm registry under the [`ingeniumgolf`](https://www.npmjs.com/org/ingeniumgolf) organisation. Releases are published by GitHub Actions through npm **trusted publishing**: no npm tokens exist in this repository, in GitHub secrets, or on developer machines.
 
+Each release is also published to **GitHub Packages** (`npm.pkg.github.com`). A `.npmrc` can only point a whole scope at one registry, and repos such as `be` get the private `@ingeniumgolf/glfr-domain` from GitHub Packages, so they need every `@ingeniumgolf` package there. That publish uses the workflow's own `GITHUB_TOKEN`; no token is stored.
+
 ## Prerequisites
 
 - Push access to `IngeniumGolf/glfr-migrations` (tags trigger releases).
@@ -31,7 +33,7 @@
    git push --follow-tags
    ```
 
-4. Watch the [Release workflow](https://github.com/IngeniumGolf/glfr-migrations/actions/workflows/release.yml). It checks that the tag matches `package.json`, runs typecheck, build and tests against Postgres, then runs `npm publish` with provenance.
+4. Watch the [Release workflow](https://github.com/IngeniumGolf/glfr-migrations/actions/workflows/release.yml). It checks that the tag matches `package.json`, runs typecheck, build and tests against Postgres, then runs `npm publish` with provenance. A second job, `github-packages`, then publishes the same version to GitHub Packages.
 
 5. Verify the release:
 
@@ -54,6 +56,8 @@
   - Permissions include **npm publish** (not only _stage publish_)
 
   After fixing it, re-run the failed job from the Actions page. The tag can stay.
+
+- **Only the `github-packages` job failed:** npm already has the version. Use **Re-run failed jobs**, which retries only the GitHub Packages publish.
 
 - **A published version is broken:** npm versions can't be overwritten. Publish a fixed patch version. Use `npm deprecate @ingeniumgolf/migrations@<version> "<reason>"` (requires `npm login`) to warn installers away from the broken one.
 
